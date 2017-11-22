@@ -42,6 +42,7 @@ export class Observer {
     this.vmCount = 0
     def(value, '__ob__', this)
     if (Array.isArray(value)) {
+      // 浏览器支持__proto__的话直接修改__proto__，否则将方法定义在对象上
       const augment = hasProto
         ? protoAugment
         : copyAugment

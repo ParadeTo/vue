@@ -32,6 +32,7 @@ export const arrayMethods = Object.create(arrayProto)
       args[i] = arguments[i]
     }
     const result = original.apply(this, args)
+    // 这里的this就是数组对象
     const ob = this.__ob__
     let inserted
     switch (method) {
@@ -46,7 +47,7 @@ export const arrayMethods = Object.create(arrayProto)
         break
     }
     if (inserted) ob.observeArray(inserted)
-    // notify change
+    // notify change 数组的依赖是在哪里收集的？
     ob.dep.notify()
     return result
   })
