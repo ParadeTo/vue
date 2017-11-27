@@ -536,7 +536,6 @@ function handleError (err, vm, info) {
 /*  */
 /* globals MutationObserver */
 
-// can we use __proto__?
 var hasProto = '__proto__' in {};
 
 // Browser environment sniffing
@@ -739,9 +738,6 @@ Dep.prototype.notify = function notify () {
   }
 };
 
-// the current target watcher being evaluated.
-// this is globally unique because there could be only one
-// watcher being evaluated at any time.
 Dep.target = null;
 var targetStack = [];
 
@@ -783,6 +779,7 @@ var arrayMethods = Object.create(arrayProto);[
       args[i] = arguments$1[i];
     }
     var result = original.apply(this, args);
+    // 这里的this就是数组对象
     var ob = this.__ob__;
     var inserted;
     switch (method) {
@@ -797,7 +794,7 @@ var arrayMethods = Object.create(arrayProto);[
         break
     }
     if (inserted) { ob.observeArray(inserted); }
-    // notify change
+    // notify change 数组的依赖是在哪里收集的？
     ob.dep.notify();
     return result
   });
@@ -830,6 +827,7 @@ var Observer = function Observer (value) {
   this.vmCount = 0;
   def(value, '__ob__', this);
   if (Array.isArray(value)) {
+    // 浏览器支持__proto__的话直接修改__proto__，否则将方法定义在对象上
     var augment = hasProto
       ? protoAugment
       : copyAugment;
@@ -895,6 +893,8 @@ function observe (value, asRootData) {
     return
   }
   var ob;
+  console.log('debug:');
+  console.log(value);
   if (hasOwn(value, '__ob__') && value.__ob__ instanceof Observer) {
     ob = value.__ob__;
   } else if (
@@ -1142,6 +1142,8 @@ strats.data = function (
 
 /**
  * Hooks and props are merged as arrays.
+ * 钩子函数合并成一个数组，vuex中mixin了beforeCreate
+ * 先执行了Vue中的beforeCreate，然后执行vuex中的beforeCreate
  */
 function mergeHook (
   parentVal,
@@ -1884,18 +1886,6 @@ function checkProp (
 
 /*  */
 
-// The template compiler attempts to minimize the need for normalization by
-// statically analyzing the template at compile time.
-//
-// For plain HTML markup, normalization can be completely skipped because the
-// generated render function is guaranteed to return Array<VNode>. There are
-// two cases where extra normalization is needed:
-
-// 1. When the children contains components - because a functional component
-// may return an Array instead of a single root. In this case, just a simple
-// normalization is needed - if any child is an Array, we flatten the whole
-// thing with Array.prototype.concat. It is guaranteed to be only 1-level deep
-// because functional components already normalize their own children.
 function simpleNormalizeChildren (children) {
   for (var i = 0; i < children.length; i++) {
     if (Array.isArray(children[i])) {
@@ -2440,7 +2430,9 @@ function mountComponent (
     };
   } else {
     updateComponent = function () {
-      vm._update(vm._render(), hydrating);
+      var renderRes = vm._render();
+      console.log(renderRes);
+      vm._update(renderRes, hydrating);
     };
   }
 
@@ -2743,6 +2735,7 @@ var Watcher = function Watcher (
   this.depIds = new _Set();
   this.newDepIds = new _Set();
   this.expression = expOrFn.toString();
+  console.log(this.expression);
   // parse expression for getter
   if (typeof expOrFn === 'function') {
     this.getter = expOrFn;
@@ -2758,6 +2751,7 @@ var Watcher = function Watcher (
       );
     }
   }
+  console.log(this.getter);
   this.value = this.lazy
     ? undefined
     : this.get();
@@ -2914,11 +2908,6 @@ Watcher.prototype.teardown = function teardown () {
   }
 };
 
-/**
- * Recursively traverse an object to evoke all converted
- * getters, so that every nested property inside the object
- * is collected as a "deep" dependency.
- */
 var seenObjects = new _Set();
 function traverse (val) {
   seenObjects.clear();
@@ -2986,6 +2975,16 @@ var isReservedProp = {
   ref: 1,
   slot: 1
 };
+
+function checkOptionType (vm, name) {
+  var option = vm.$options[name];
+  if (!isPlainObject(option)) {
+    warn(
+      ("component option \"" + name + "\" should be an object."),
+      vm
+    );
+  }
+}
 
 function initProps (vm, propsOptions) {
   var propsData = vm.$options.propsData || {};
@@ -3075,6 +3074,7 @@ function getData (data, vm) {
 var computedWatcherOptions = { lazy: true };
 
 function initComputed (vm, computed) {
+  "development" !== 'production' && checkOptionType(vm, 'computed');
   var watchers = vm._computedWatchers = Object.create(null);
 
   for (var key in computed) {
@@ -3140,6 +3140,7 @@ function createComputedGetter (key) {
 }
 
 function initMethods (vm, methods) {
+  "development" !== 'production' && checkOptionType(vm, 'methods');
   var props = vm.$options.props;
   for (var key in methods) {
     vm[key] = methods[key] == null ? noop : bind(methods[key], vm);
@@ -3162,6 +3163,7 @@ function initMethods (vm, methods) {
 }
 
 function initWatch (vm, watch) {
+  "development" !== 'production' && checkOptionType(vm, 'watch');
   for (var key in watch) {
     var handler = watch[key];
     if (Array.isArray(handler)) {
@@ -3174,8 +3176,12 @@ function initWatch (vm, watch) {
   }
 }
 
-function createWatcher (vm, key, handler) {
-  var options;
+function createWatcher (
+  vm,
+  keyOrFn,
+  handler,
+  options
+) {
   if (isPlainObject(handler)) {
     options = handler;
     handler = handler.handler;
@@ -3183,7 +3189,7 @@ function createWatcher (vm, key, handler) {
   if (typeof handler === 'string') {
     handler = vm[handler];
   }
-  vm.$watch(key, handler, options);
+  return vm.$watch(keyOrFn, handler, options)
 }
 
 function stateMixin (Vue) {
@@ -3218,6 +3224,9 @@ function stateMixin (Vue) {
     options
   ) {
     var vm = this;
+    if (isPlainObject(cb)) {
+      return createWatcher(vm, expOrFn, cb, options)
+    }
     options = options || {};
     options.user = true;
     var watcher = new Watcher(vm, expOrFn, cb, options);
@@ -3338,7 +3347,6 @@ function mergeProps (to, from) {
 
 /*  */
 
-// hooks to be invoked on component VNodes during patch
 var componentVNodeHooks = {
   init: function init (
     vnode,
@@ -3571,7 +3579,9 @@ function createElement (
   if (isTrue(alwaysNormalize)) {
     normalizationType = ALWAYS_NORMALIZE;
   }
-  return _createElement(context, tag, data, children, normalizationType)
+  var element = _createElement(context, tag, data, children, normalizationType);
+  console.log(element);
+  return element
 }
 
 function _createElement (
@@ -3658,9 +3668,6 @@ function applyNS (vnode, ns) {
 
 /*  */
 
-/**
- * Runtime helper for rendering v-for lists.
- */
 function renderList (
   val,
   render
@@ -3692,9 +3699,6 @@ function renderList (
 
 /*  */
 
-/**
- * Runtime helper for rendering <slot>
- */
 function renderSlot (
   name,
   fallback,
@@ -3725,18 +3729,12 @@ function renderSlot (
 
 /*  */
 
-/**
- * Runtime helper for resolving filters
- */
 function resolveFilter (id) {
   return resolveAsset(this.$options, 'filters', id, true) || identity
 }
 
 /*  */
 
-/**
- * Runtime helper for checking keyCodes from config.
- */
 function checkKeyCodes (
   eventKeyCode,
   key,
@@ -3752,9 +3750,6 @@ function checkKeyCodes (
 
 /*  */
 
-/**
- * Runtime helper for merging v-bind="object" into a VNode's data.
- */
 function bindObjectProps (
   data,
   tag,
@@ -3792,9 +3787,6 @@ function bindObjectProps (
 
 /*  */
 
-/**
- * Runtime helper for rendering static trees.
- */
 function renderStatic (
   index,
   isInFor
@@ -3880,6 +3872,11 @@ function renderMixin (Vue) {
     var staticRenderFns = ref.staticRenderFns;
     var _parentVnode = ref._parentVnode;
 
+    // function anonymous() {
+    //    with(this){return _c('ul',{attrs:{"id":"demo"}},_l((list),function(l){return _c('li',[_v(_s(l.label))])}))}
+    // }
+    console.log(render);
+
     if (vm._isMounted) {
       // clone slot nodes on re-renders
       for (var key in vm.$slots) {
@@ -3923,6 +3920,7 @@ function renderMixin (Vue) {
     }
     // set parent
     vnode.parent = _parentVnode;
+    console.log(vnode);
     return vnode
   };
 
@@ -4424,8 +4422,6 @@ Vue$3.version = '2.3.3';
 
 /*  */
 
-// these are reserved for web because they are directly compiled away
-// during template compilation
 var isReservedAttr = makeMap('style,class');
 
 // attributes that should be using props for binding
@@ -4611,9 +4607,6 @@ function isUnknownElement (tag) {
 
 /*  */
 
-/**
- * Query an element selector if it's not an element already.
- */
 function query (el) {
   if (typeof el === 'string') {
     var selected = document.querySelector(el);
@@ -6115,10 +6108,6 @@ function genDefaultModel (
 
 /*  */
 
-// normalize v-model event tokens that can only be determined at runtime.
-// it's important to place the event as the first in the array because
-// the whole point is ensuring the v-model callback gets called before
-// user-attached handlers.
 function normalizeEvents (on) {
   var event;
   /* istanbul ignore if */
@@ -6987,8 +6976,6 @@ var platformModules = [
 
 /*  */
 
-// the directive module should be applied last, after all
-// built-in modules have been applied.
 var modules = platformModules.concat(baseModules);
 
 var patch = createPatchFunction({ nodeOps: nodeOps, modules: modules });
@@ -6998,7 +6985,6 @@ var patch = createPatchFunction({ nodeOps: nodeOps, modules: modules });
  * properties to Elements.
  */
 
-/* istanbul ignore if */
 if (isIE9) {
   // http://www.matts411.com/post/internet-explorer-9-oninput/
   document.addEventListener('selectionchange', function () {
@@ -7123,7 +7109,6 @@ function trigger (el, type) {
 
 /*  */
 
-// recursively search for possible transition defined inside the component root
 function locateNode (vnode) {
   return vnode.componentInstance && (!vnode.data || !vnode.data.transition)
     ? locateNode(vnode.componentInstance._vnode)
@@ -7541,7 +7526,6 @@ var platformComponents = {
 
 /*  */
 
-// install platform specific utils
 Vue$3.config.mustUseProp = mustUseProp;
 Vue$3.config.isReservedTag = isReservedTag;
 Vue$3.config.isReservedAttr = isReservedAttr;
@@ -7591,7 +7575,6 @@ setTimeout(function () {
 
 /*  */
 
-// check whether current browser encodes a char inside attribute values
 function shouldDecode (content, encoded) {
   var div = document.createElement('div');
   div.innerHTML = "<div a=\"" + content + "\">";
@@ -7646,7 +7629,6 @@ function decode (html) {
  * http://erik.eae.net/simplehtmlparser/simplehtmlparser.js
  */
 
-// Regular Expressions for parsing tags and attributes
 var singleAttrIdentifier = /([^\s"'<>/=]+)/;
 var singleAttrAssign = /(?:=)/;
 var singleAttrValues = [
@@ -8817,7 +8799,6 @@ var baseDirectives = {
 
 /*  */
 
-// configurable state
 var warn$3;
 var transforms$1;
 var dataGenFns;
@@ -9207,8 +9188,6 @@ function transformSpecialNewlines (text) {
 
 /*  */
 
-// these keywords should not appear inside expressions, but operators like
-// typeof, instanceof and in are allowed
 var prohibitedKeywordRE = new RegExp('\\b' + (
   'do,if,for,let,new,try,var,case,else,with,await,break,catch,class,const,' +
   'super,throw,while,yield,delete,export,import,return,switch,default,' +
@@ -9367,6 +9346,7 @@ function createCompiler (baseOptions) {
     }
     compiled.errors = errors;
     compiled.tips = tips;
+    console.log(compiled);
     return compiled
   }
 
@@ -9595,8 +9575,9 @@ var idToTemplate = cached(function (id) {
   var el = query(id);
   return el && el.innerHTML
 });
-
+// 缓存了来自 web-runtime.js 的 $mount 方法
 var mount = Vue$3.prototype.$mount;
+// 重写 $mount 方法
 Vue$3.prototype.$mount = function (
   el,
   hydrating
@@ -9613,6 +9594,7 @@ Vue$3.prototype.$mount = function (
 
   var options = this.$options;
   // resolve template/el and convert to render function
+  // 如果我们没有写 render 选项，那么就尝试将 template 或者 el 转化为 render 函数
   if (!options.render) {
     var template = options.template;
     if (template) {
@@ -9660,6 +9642,7 @@ Vue$3.prototype.$mount = function (
       }
     }
   }
+  // 调用已经缓存下来的 web-runtime.js 文件中的 $mount 方法
   return mount.call(this, el, hydrating)
 };
 

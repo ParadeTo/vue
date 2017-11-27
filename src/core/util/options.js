@@ -116,6 +116,8 @@ strats.data = function (
 
 /**
  * Hooks and props are merged as arrays.
+ * 钩子函数合并成一个数组，vuex中mixin了beforeCreate
+ * 先执行了Vue中的beforeCreate，然后执行vuex中的beforeCreate
  */
 function mergeHook (
   parentVal: ?Array<Function>,

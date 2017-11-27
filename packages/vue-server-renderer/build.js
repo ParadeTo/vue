@@ -917,6 +917,7 @@ var arrayMethods = Object.create(arrayProto);[
       args[i] = arguments$1[i];
     }
     var result = original.apply(this, args);
+    // 这里的this就是数组对象
     var ob = this.__ob__;
     var inserted;
     switch (method) {
@@ -931,7 +932,7 @@ var arrayMethods = Object.create(arrayProto);[
         break
     }
     if (inserted) { ob.observeArray(inserted); }
-    // notify change
+    // notify change 数组的依赖是在哪里收集的？
     ob.dep.notify();
     return result
   });
@@ -964,6 +965,7 @@ var Observer = function Observer (value) {
   this.vmCount = 0;
   def(value, '__ob__', this);
   if (Array.isArray(value)) {
+    // 浏览器支持__proto__的话直接修改__proto__，否则将方法定义在对象上
     var augment = hasProto
       ? protoAugment
       : copyAugment;
@@ -1029,6 +1031,7 @@ function observe (value, asRootData) {
     return
   }
   var ob;
+  console.log(val);
   if (hasOwn(value, '__ob__') && value.__ob__ instanceof Observer) {
     ob = value.__ob__;
   } else if (
