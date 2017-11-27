@@ -39,7 +39,9 @@ export function createElement (
   if (isTrue(alwaysNormalize)) {
     normalizationType = ALWAYS_NORMALIZE
   }
-  return _createElement(context, tag, data, children, normalizationType)
+  var element = _createElement(context, tag, data, children, normalizationType)
+  console.log(element)
+  return element
 }
 
 export function _createElement (

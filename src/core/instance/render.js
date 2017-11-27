@@ -56,6 +56,11 @@ export function renderMixin (Vue: Class<Component>) {
       _parentVnode
     } = vm.$options
 
+    // function anonymous() {
+    //    with(this){return _c('ul',{attrs:{"id":"demo"}},_l((list),function(l){return _c('li',[_v(_s(l.label))])}))}
+    // }
+    console.log(render)
+
     if (vm._isMounted) {
       // clone slot nodes on re-renders
       for (const key in vm.$slots) {
@@ -101,6 +106,7 @@ export function renderMixin (Vue: Class<Component>) {
     }
     // set parent
     vnode.parent = _parentVnode
+    console.log(vnode)
     return vnode
   }
 

@@ -183,7 +183,9 @@ export function mountComponent (
     }
   } else {
     updateComponent = () => {
-      vm._update(vm._render(), hydrating)
+      const renderRes = vm._render()
+      console.log(renderRes)
+      vm._update(renderRes, hydrating)
     }
   }
 

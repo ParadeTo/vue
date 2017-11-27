@@ -72,6 +72,7 @@ export function createCompiler (baseOptions: CompilerOptions) {
     }
     compiled.errors = errors
     compiled.tips = tips
+    console.log(compiled)
     return compiled
   }
 
